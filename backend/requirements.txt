@@ -1,0 +1,29 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.1
+httpx>=0.27.0
+aiofiles>=23.2.1
+
+# Telephony
+twilio>=9.2.0
+
+# LLM
+google-generativeai>=0.7.0
+
+# TTS (Google TTS, no credentials needed)
+gTTS>=2.5.1
+
+# STT
+openai-whisper>=20231117
+torch>=2.2.0
+
+# Audio processing (WAV loading without ffmpeg)
+scipy>=1.13.0
+numpy>=1.26.0
+soundfile>=0.12.1
+
+# Async support
+anyio>=4.4.0
