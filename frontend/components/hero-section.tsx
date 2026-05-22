@@ -3,14 +3,13 @@
 import React from "react"
 import { ArrowRight, Sparkles, Zap, Shield } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-screen gradient-hero flex flex-col items-center justify-center overflow-hidden px-4 pt-16">
+    <section className="relative min-h-screen gradient-hero flex flex-col items-center justify-center overflow-hidden px-4 pt-16 pb-20">
       {/* Background grid */}
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 opacity-[0.04] pointer-events-none"
         style={{
           backgroundImage:
             "linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)",
@@ -23,7 +22,7 @@ export function HeroSection() {
 
       <div className="relative z-10 max-w-5xl mx-auto text-center space-y-8">
         {/* Announcement badge */}
-        <div className="animate-fade-in opacity-0 flex justify-center">
+        <div className="animate-fade-in flex justify-center">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/15 border border-primary/25 text-primary text-sm font-medium">
             <Sparkles className="size-3.5" />
             Powered by Gemini AI + Whisper STT
@@ -31,7 +30,7 @@ export function HeroSection() {
         </div>
 
         {/* Headline */}
-        <div className="animate-fade-in opacity-0 delay-100 space-y-4">
+        <div className="animate-fade-in delay-100 space-y-4">
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold text-white leading-[1.05] tracking-tight">
             Voice AI That{" "}
             <span className="gradient-text">Converts</span>
@@ -46,26 +45,30 @@ export function HeroSection() {
         </div>
 
         {/* CTAs */}
-        <div className="animate-fade-in opacity-0 delay-200 flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="animate-fade-in delay-200 flex flex-col sm:flex-row gap-4 justify-center">
           <a href="#launch-call">
-            <Button size="xl" className="glow-primary-sm group">
+            <Button size="xl" className="glow-primary-sm group w-full sm:w-auto">
               Launch Your First Call
               <ArrowRight className="size-5 group-hover:translate-x-0.5 transition-transform" />
             </Button>
           </a>
           <a href="#how-it-works">
-            <Button size="xl" variant="outline" className="border-white/20 text-white hover:bg-white/10 hover:text-white dark:bg-transparent dark:border-white/20 dark:hover:bg-white/10">
+            <Button
+              size="xl"
+              variant="outline"
+              className="w-full sm:w-auto border-white/20 text-white hover:bg-white/10 hover:text-white bg-transparent dark:bg-transparent dark:border-white/20 dark:hover:bg-white/10"
+            >
               See How It Works
             </Button>
           </a>
         </div>
 
         {/* Trust indicators */}
-        <div className="animate-fade-in opacity-0 delay-300 flex flex-wrap justify-center gap-6 pt-4">
+        <div className="animate-fade-in delay-300 flex flex-wrap justify-center gap-6 pt-2">
           {[
-            { icon: Zap, label: "Real-time AI responses" },
-            { icon: Shield, label: "Enterprise-grade security" },
-            { icon: Sparkles, label: "Context-aware conversations" },
+            { icon: Zap,     label: "Real-time AI responses" },
+            { icon: Shield,  label: "Enterprise-grade security" },
+            { icon: Sparkles,label: "Context-aware conversations" },
           ].map(({ icon: Icon, label }) => (
             <div key={label} className="flex items-center gap-2 text-white/50 text-sm">
               <Icon className="size-4 text-primary" />
@@ -75,15 +78,17 @@ export function HeroSection() {
         </div>
 
         {/* Stats row */}
-        <div className="animate-fade-in opacity-0 delay-400 grid grid-cols-3 gap-px max-w-2xl mx-auto mt-16 rounded-2xl overflow-hidden border border-white/10">
+        <div className="animate-fade-in delay-400 grid grid-cols-3 max-w-2xl mx-auto mt-12 rounded-2xl overflow-hidden border border-white/10">
           {[
             { value: "10M+", label: "Calls Handled" },
-            { value: "98%", label: "Transcription Accuracy" },
-            { value: "60%", label: "Cost Reduction" },
-          ].map(({ value, label }) => (
+            { value: "98%",  label: "Transcription Accuracy" },
+            { value: "60%",  label: "Cost Reduction" },
+          ].map(({ value, label }, i) => (
             <div
               key={label}
-              className="bg-white/5 backdrop-blur-sm py-6 px-4 text-center hover:bg-white/8 transition-colors"
+              className={`bg-white/5 py-6 px-4 text-center hover:bg-white/10 transition-colors ${
+                i < 2 ? "border-r border-white/10" : ""
+              }`}
             >
               <div className="text-3xl font-bold text-white">{value}</div>
               <div className="text-sm text-white/50 mt-1">{label}</div>
@@ -91,9 +96,6 @@ export function HeroSection() {
           ))}
         </div>
       </div>
-
-      {/* Bottom fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
     </section>
   )
 }

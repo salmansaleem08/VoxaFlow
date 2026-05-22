@@ -142,7 +142,7 @@ export function CallStatus({ callId, onReset }: CallStatusProps) {
 
             <div className="flex items-center gap-2 flex-wrap">
               {outcomeConf && (
-                <Badge variant={outcomeConf.color as "success" | "warning" | "destructive" | "muted" | "default"}>
+                <Badge variant={(outcomeConf.color as Parameters<typeof Badge>[0]["variant"])}>
                   {outcomeConf.label}
                 </Badge>
               )}

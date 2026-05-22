@@ -10,16 +10,17 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20)
-    window.addEventListener("scroll", onScroll)
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    onScroll() // Check initial state on mount
+    window.addEventListener("scroll", onScroll, { passive: true })
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
   const links = [
-    { label: "Platform", href: "#features" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Use Cases", href: "#use-cases" },
-    { label: "Launch a Call", href: "#launch-call" },
+    { label: "Platform",       href: "#features" },
+    { label: "How It Works",   href: "#how-it-works" },
+    { label: "Use Cases",      href: "#use-cases" },
+    { label: "Launch a Call",  href: "#launch-call" },
   ]
 
   return (
@@ -27,8 +28,8 @@ export function Navbar() {
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
         scrolled
-          ? "bg-secondary/95 backdrop-blur-md shadow-lg"
-          : "bg-transparent"
+          ? "bg-secondary/98 backdrop-blur-md shadow-lg border-b border-white/10"
+          : "bg-secondary/80 backdrop-blur-sm"
       )}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -65,9 +66,9 @@ export function Navbar() {
             </a>
           </div>
 
-          {/* Mobile menu toggle */}
+          {/* Mobile toggle */}
           <button
-            className="md:hidden text-white/80 hover:text-white transition-colors"
+            className="md:hidden text-white/80 hover:text-white transition-colors p-1"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Toggle menu"
           >
@@ -78,19 +79,19 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="md:hidden bg-secondary/98 backdrop-blur-md border-t border-white/10">
-          <div className="px-4 py-4 space-y-3">
+        <div className="md:hidden bg-secondary border-t border-white/10">
+          <div className="px-4 py-4 space-y-1">
             {links.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className="block text-white/70 hover:text-white text-sm font-medium py-2 transition-colors"
+                className="block text-white/70 hover:text-white text-sm font-medium py-2.5 px-2 rounded-lg hover:bg-white/5 transition-colors"
                 onClick={() => setMobileOpen(false)}
               >
                 {link.label}
               </a>
             ))}
-            <div className="pt-2 border-t border-white/10">
+            <div className="pt-3 border-t border-white/10">
               <a href="#launch-call" onClick={() => setMobileOpen(false)}>
                 <Button size="sm" className="w-full font-semibold">
                   Get Started

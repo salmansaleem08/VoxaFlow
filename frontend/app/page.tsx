@@ -6,13 +6,15 @@ import { HeroSection } from "@/components/hero-section"
 import { FeaturesSection, HowItWorksSection } from "@/components/features-section"
 import { CallForm } from "@/components/call-form"
 import { CallStatus } from "@/components/call-status"
-import { Phone, Mail, Twitter, Linkedin, Github } from "lucide-react"
+import { Phone, Twitter, Linkedin, Github } from "lucide-react"
+
+const CURRENT_YEAR = new Date().getFullYear()
 
 export default function Home() {
   const [activeCallId, setActiveCallId] = useState<string | null>(null)
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
 
       {/* Hero */}
@@ -27,14 +29,14 @@ export default function Home() {
       {/* Use Cases */}
       <section id="use-cases" className="py-24 px-4 bg-secondary text-secondary-foreground">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-14">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary text-sm font-medium">
               Use Cases
             </span>
             <h2 className="text-4xl sm:text-5xl font-bold text-white">
               Built for every industry
             </h2>
-            <p className="max-w-xl mx-auto text-white/60 text-lg">
+            <p className="max-w-xl mx-auto text-white/55 text-lg">
               VoxaFlow adapts to your vertical with configurable agent personas and conversation flows.
             </p>
           </div>
@@ -43,7 +45,7 @@ export default function Home() {
             {[
               {
                 title: "Healthcare",
-                desc: "Appointment reminders, prescription refill notifications, post-visit follow-ups.",
+                desc: "Appointment reminders, prescription refill notifications, and post-visit follow-ups.",
                 emoji: "🏥",
               },
               {
@@ -75,7 +77,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Launch Call ─────────────────────────────────────────────────────── */}
+      {/* ── Launch Call ───────────────────────────────────────────────────────── */}
       <section id="launch-call" className="py-24 px-4 bg-background">
         <div className="max-w-3xl mx-auto">
           <div className="text-center space-y-4 mb-12">
@@ -87,16 +89,13 @@ export default function Home() {
               <span className="gradient-text">AI call now</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-              Enter a phone number, choose a scenario, and watch VoxaFlow's AI agent
+              Enter a phone number, choose a scenario, and watch VoxaFlow&apos;s AI agent
               handle the entire conversation — in real time.
             </p>
           </div>
 
           {activeCallId ? (
-            <CallStatus
-              callId={activeCallId}
-              onReset={() => setActiveCallId(null)}
-            />
+            <CallStatus callId={activeCallId} onReset={() => setActiveCallId(null)} />
           ) : (
             <CallForm onCallInitiated={setActiveCallId} />
           )}
@@ -128,6 +127,7 @@ export default function Home() {
                     key={i}
                     href="#"
                     className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+                    aria-label="Social link"
                   >
                     <Icon className="size-4" />
                   </a>
@@ -137,36 +137,22 @@ export default function Home() {
 
             {/* Links */}
             <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-white/80 uppercase tracking-wide">
-                Platform
-              </h4>
+              <h4 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Platform</h4>
               <ul className="space-y-2">
                 {["Features", "How It Works", "Use Cases", "Pricing"].map((item) => (
                   <li key={item}>
-                    <a
-                      href="#"
-                      className="text-sm text-white/50 hover:text-white transition-colors"
-                    >
-                      {item}
-                    </a>
+                    <a href="#" className="text-sm text-white/50 hover:text-white transition-colors">{item}</a>
                   </li>
                 ))}
               </ul>
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-white/80 uppercase tracking-wide">
-                Company
-              </h4>
+              <h4 className="text-sm font-semibold text-white/80 uppercase tracking-wide">Company</h4>
               <ul className="space-y-2">
                 {["About", "Blog", "Careers", "Contact"].map((item) => (
                   <li key={item}>
-                    <a
-                      href="#"
-                      className="text-sm text-white/50 hover:text-white transition-colors"
-                    >
-                      {item}
-                    </a>
+                    <a href="#" className="text-sm text-white/50 hover:text-white transition-colors">{item}</a>
                   </li>
                 ))}
               </ul>
@@ -174,16 +160,13 @@ export default function Home() {
           </div>
 
           <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-white/40 text-sm">
-              © {new Date().getFullYear()} VoxaFlow, Inc. All rights reserved.
+            {/* suppressHydrationWarning prevents React hydration mismatch on year */}
+            <p className="text-white/40 text-sm" suppressHydrationWarning>
+              © {CURRENT_YEAR} VoxaFlow, Inc. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               {["Privacy Policy", "Terms of Service", "Security"].map((item) => (
-                <a
-                  key={item}
-                  href="#"
-                  className="text-xs text-white/40 hover:text-white/70 transition-colors"
-                >
+                <a key={item} href="#" className="text-xs text-white/40 hover:text-white/70 transition-colors">
                   {item}
                 </a>
               ))}
