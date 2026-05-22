@@ -10,8 +10,8 @@ aiofiles>=23.2.1
 # Telephony
 twilio>=9.2.0
 
-# LLM
-google-generativeai>=0.7.0
+# LLM — new google-genai SDK (google-generativeai is deprecated)
+google-genai>=1.0.0
 
 # TTS (Google TTS, no credentials needed)
 gTTS>=2.5.1
