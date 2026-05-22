@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: voxaflow-api
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: BACKEND_URL
+        sync: false   # Set to your Render service URL after first deploy
+      - key: FRONTEND_URL
+        sync: false   # Set to your Vercel URL
+      - key: WHISPER_MODEL
+        value: base
+      - key: PYTHON_VERSION
+        value: "3.11.0"
