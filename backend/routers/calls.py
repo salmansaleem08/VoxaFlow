@@ -22,8 +22,11 @@ async def _prepare_and_call(call_id: str, phone_number: str, scenario: ScenarioT
         # Convert to audio
         audio_file = await tts_service.generate_speech(opening_text)
 
-        # Store opening in conversation history
+        # Store opening in conversation history.
+        # Gemini requires conversation to start with a user turn, so we add a
+        # synthetic user turn before the first model turn.
         call_store.append_transcript(call_id, "agent", opening_text)
+        call_store.append_conversation(call_id, "user", "The call just connected. Please begin with your opening greeting.")
         call_store.append_conversation(call_id, "model", opening_text)
 
         # Stash audio filename in session so the webhook can reference it
