@@ -7,34 +7,31 @@ from models.schemas import (
     InitiateCallRequest, InitiateCallResponse, CallStatusResponse,
     CallStatus, ScenarioType,
 )
-from services import call_store, twilio_service, tts_service, gemini_service
+from services import call_store, twilio_service, gemini_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 async def _prepare_and_call(call_id: str, phone_number: str, scenario: ScenarioType, scenario_data: dict):
-    """Background task: generate opening TTS audio, then make the Twilio call."""
+    """
+    Background task:
+    1. Generate opening greeting text via Gemini (fast — no TTS file needed)
+    2. Store it in session so the answer webhook can deliver it via Twilio <Say>
+    3. Initiate the Twilio call
+    """
     try:
-        # Generate opening message via Gemini
         opening_text = await gemini_service.get_opening_message(scenario, scenario_data)
 
-        # Convert to audio
-        audio_file = await tts_service.generate_speech(opening_text)
-
-        # Store opening in conversation history.
-        # Gemini requires conversation to start with a user turn, so we add a
-        # synthetic user turn before the first model turn.
         call_store.append_transcript(call_id, "agent", opening_text)
+        # Gemini requires conversations to start with a user turn
         call_store.append_conversation(call_id, "user", "The call just connected. Please begin with your opening greeting.")
         call_store.append_conversation(call_id, "model", opening_text)
 
-        # Stash audio filename in session so the webhook can reference it
         session = call_store.get_session(call_id)
         if session:
-            session.scenario_data["__opening_audio__"] = audio_file
+            session.scenario_data["__opening_text__"] = opening_text
 
-        # Make the Twilio call
         twilio_sid = twilio_service.make_outbound_call(phone_number, call_id)
         call_store.update_status(call_id, CallStatus.RINGING, twilio_sid)
 
@@ -47,7 +44,7 @@ async def _prepare_and_call(call_id: str, phone_number: str, scenario: ScenarioT
 async def initiate_call(request: InitiateCallRequest, background_tasks: BackgroundTasks):
     """
     Initiate an outbound AI voice call.
-    Returns immediately with a call_id; use GET /calls/{call_id}/status to poll.
+    Returns immediately with a call_id; poll GET /calls/{call_id}/status for updates.
     """
     session = call_store.create_session(
         phone_number=request.phone_number,
