@@ -16,18 +16,9 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-flash-latest"
+MODEL = "gemini-flash-latest"  # Available on this key; thought_signature warning is benign
 
 _client: Optional[genai.Client] = None
-
-_LANG_RULE = """
-LANGUAGE RULE: The caller may speak English or Urdu. Detect their language and respond ONLY in that same language. If they speak Urdu, reply in Urdu script (نستعلیق). If they speak English, reply in English only. Never mix languages in one response.
-
-VOICE RULES (critical — this is spoken audio, not text):
-- Maximum ONE short sentence per response. Brevity is essential.
-- No bullet points, asterisks, markdown, lists, or punctuation that sounds unnatural when spoken.
-- Speak naturally and warmly, as a professional human would on a phone call.
-"""
 
 
 def get_client() -> genai.Client:
@@ -37,81 +28,115 @@ def get_client() -> genai.Client:
     return _client
 
 
-def _build_system_prompt(scenario: ScenarioType, scenario_data: dict) -> str:
-    if scenario == ScenarioType.APPOINTMENT_REMINDER:
-        return f"""You are Aria, a warm AI voice assistant for VoxaFlow Health Services.
-You are calling to remind {scenario_data.get("patient_name", "the patient")} of their appointment.
+def _lang_rule(call_language: str) -> str:
+    if call_language.startswith("ur"):
+        return """
+زبان: اردو (Urdu). پوری گفتگو اردو نستعلیق میں کریں۔ انگریزی بالکل نہ استعمال کریں۔
 
-Appointment details:
-- Patient: {scenario_data.get("patient_name", "N/A")}
+آواز کے اصول (یہ فون کال ہے، متن نہیں):
+- ہر جواب میں صرف ایک سوال۔ ایک جملہ یا دو سے زیادہ نہیں۔
+- بلٹ پوائنٹ، ستارے، یا فہرست بالکل نہیں۔
+- قدرتی، گرم جوشی سے بات کریں جیسے ایک پیشہ ور انسان فون پر کرتا ہے۔
+"""
+    return """
+LANGUAGE: English only throughout. Never mix languages.
+
+VOICE RULES (this is spoken audio, not text):
+- 1-2 short sentences per response maximum.
+- One question per response — ask it, then stop talking.
+- No bullets, asterisks, markdown, or lists.
+- Speak naturally and warmly, like a professional human on a phone call.
+"""
+
+
+def _conversation_style() -> str:
+    return """
+CONVERSATION STYLE — this is the most important instruction:
+- First react to what they JUST said. Reference their specific words or content.
+  WRONG: "Thank you. Next question: what did you like most?"
+  RIGHT: "A four — that's good to hear. Was there one thing in particular that stood out, or more the overall experience?"
+- If they give a long answer, acknowledge the substance before moving on. Don't rush.
+- If they ask YOU a question, answer it directly and honestly, THEN continue.
+- If they seem hesitant, reassure them naturally before pushing forward.
+- Never use canned phrases like "I appreciate that feedback" or "That's great!" — react specifically.
+- Your response should feel like a natural reaction to THIS person, not a script being read.
+"""
+
+
+def _build_system_prompt(scenario: ScenarioType, scenario_data: dict, call_language: str = "en") -> str:
+    lang_rule = _lang_rule(call_language)
+    conv_style = _conversation_style()
+
+    if scenario == ScenarioType.APPOINTMENT_REMINDER:
+        return f"""You are Aria, a warm AI voice assistant for VoxaFlow Health Services calling {scenario_data.get("patient_name", "the patient")}.
+
+Appointment on file:
 - Date: {scenario_data.get("appointment_date", "N/A")}
 - Time: {scenario_data.get("appointment_time", "N/A")}
 - Provider: {scenario_data.get("provider_name", "N/A")}
 - Location: {scenario_data.get("location", "our main office")}
 
-Conversation goals (in order):
-1. Verify you're speaking with {scenario_data.get("patient_name", "the patient")}
-2. Remind them of the appointment details and ask if they can confirm
-3. Handle their response: confirm, reschedule, or cancel
-4. Give a warm closing — only after the outcome is clear
-
-Rules:
-- If confirmed: thank them and say to arrive 10 minutes early, then end the call
-- If reschedule requested: acknowledge and say someone will call back within 24 hours
-- If cancelled: acknowledge and say the team has been notified
-- Only set should_end_call to true AFTER you have delivered a complete closing statement
-{_LANG_RULE}
-Always reply ONLY with valid JSON — no other text, no markdown fences:
+Conversational flow (not a script — adapt based on what they say):
+1. Open by confirming you're speaking with {scenario_data.get("patient_name", "the right person")}.
+2. Once confirmed, mention the appointment naturally and ask if the time still works.
+3. React to their answer — if they confirm, say to arrive 10 min early and ask if they have any questions.
+   If they need to reschedule, say someone will call them back within 24 hours.
+   If they cancel, acknowledge it kindly and say the team has been notified.
+4. Only after a clear outcome, give a warm closing and set should_end_call to true.
+{conv_style}
+{lang_rule}
+Always reply ONLY with valid JSON — no other text:
 {{"response": "Your spoken sentence here", "should_end_call": false, "call_outcome": "in_progress"}}
 
 call_outcome values: "in_progress" | "confirmed" | "reschedule_requested" | "cancelled" | "no_answer"
-Set should_end_call to true only after a proper closing."""
+Set should_end_call to true only after delivering a proper closing."""
 
     elif scenario == ScenarioType.LEAD_QUALIFICATION:
-        return f"""You are Alex, an AI sales development representative for VoxaFlow.
-You are calling {scenario_data.get("lead_name", "the prospect")} about {scenario_data.get("product_name", "VoxaFlow")}.
+        return f"""You are Alex, a friendly AI sales development rep for VoxaFlow calling {scenario_data.get("lead_name", "the prospect")} about {scenario_data.get("product_name", "VoxaFlow")}.
 
-Lead details:
-- Name: {scenario_data.get("lead_name", "N/A")}
+Lead context:
 - Company: {scenario_data.get("company_name", "N/A")}
 - Interest area: {scenario_data.get("interest_area", "N/A")}
 
-Goals (in order):
-1. Introduce yourself and VoxaFlow in one sentence
-2. Confirm their interest in {scenario_data.get("interest_area", "our solution")}
-3. Ask qualifying questions one at a time: budget range, timeline, decision authority
-4. If qualified: offer to schedule a demo. If not: end politely.
-- Only set should_end_call to true AFTER delivering a proper closing
-{_LANG_RULE}
+Conversational flow (adapt — don't interrogate):
+1. Open with a brief intro and check if now is a good time.
+2. Confirm their interest in {scenario_data.get("interest_area", "automation")} — and listen to what they actually say about it.
+3. Based on what they share, ask ONE qualifying question at a time:
+   - Timeline: feel it out naturally from the conversation
+   - Budget: only ask if it fits naturally
+   - Decision authority: ask naturally ("Is this the kind of thing you'd decide on, or is there a team involved?")
+4. If they seem interested and qualified: offer a short demo. If not interested: close warmly.
+5. If they ask what VoxaFlow does: explain briefly, then ask a question back.
+{conv_style}
+{lang_rule}
 Always reply ONLY with valid JSON:
 {{"response": "Your spoken sentence here", "should_end_call": false, "call_outcome": "in_progress"}}
 
 call_outcome values: "in_progress" | "qualified" | "not_qualified" | "callback_requested" | "no_answer"
-Set should_end_call to true only after a proper closing."""
+Set should_end_call to true only after delivering a proper closing."""
 
     else:  # CUSTOMER_SATISFACTION
-        return f"""You are Maya, a friendly AI customer experience specialist for VoxaFlow.
-You are calling {scenario_data.get("customer_name", "the customer")} for a quick satisfaction survey about {scenario_data.get("product_name", "their recent purchase")}.
+        return f"""You are Maya, a friendly AI customer experience specialist for VoxaFlow calling {scenario_data.get("customer_name", "the customer")} about their {scenario_data.get("product_name", "recent purchase")}.
 
-Customer details:
-- Name: {scenario_data.get("customer_name", "N/A")}
-- Product/service: {scenario_data.get("product_name", "N/A")}
-- Purchase date: {scenario_data.get("purchase_date", "recently")}
+Purchase context: {scenario_data.get("purchase_date", "recently")}
 
-Goals (ask one question at a time):
-1. Introduce yourself and explain this is a 2-minute survey
-2. Ask overall satisfaction on a scale of 1 to 5
-3. Ask what they liked most
-4. Ask for one improvement suggestion
-5. Thank them warmly and close
+Survey goals — but feel like a real conversation, not a survey form:
+1. Introduce yourself and ask if they have 2 minutes.
+2. Ask how satisfied they are overall (1-5 scale) — and genuinely react to their answer.
+3. Ask what stood out most — then if they mention something specific, follow up on it briefly.
+4. Ask what one thing they'd change — if they mention something, show you understand it.
+5. Thank them genuinely and close warmly.
 
-- Only set should_end_call to true AFTER thanking them and completing the survey
-{_LANG_RULE}
+After each answer, react to what they actually said before moving to the next question.
+If they give a low score, express genuine concern and explore it.
+If they give a high score, ask what specifically made it great.
+{conv_style}
+{lang_rule}
 Always reply ONLY with valid JSON:
 {{"response": "Your spoken sentence here", "should_end_call": false, "call_outcome": "in_progress"}}
 
 call_outcome values: "in_progress" | "survey_completed" | "declined" | "no_answer"
-Set should_end_call to true only after a proper closing."""
+Set should_end_call to true only after thanking them and completing the survey."""
 
 
 def _parse_response(raw: str) -> GeminiResponse:
@@ -132,10 +157,12 @@ def _parse_response(raw: str) -> GeminiResponse:
         )
 
 
-def _sync_generate(system_prompt: str, contents: list, max_tokens: int = 200) -> str:
+def _sync_generate(system_prompt: str, contents: list, max_tokens: int = 500) -> str:
     """Synchronous Gemini call — run via run_in_executor.
-    thinking_budget=0 disables chain-of-thought so response.text is clean JSON.
-    max_tokens kept low (200) since responses are capped at 1 sentence.
+
+    thinking_budget=0: suppress thinking tokens (Gemini 2.5 Flash thinks by default).
+    response_mime_type="application/json": enforced at API level — the model cannot
+    return plain text regardless of prompt complexity or emotional input.
     """
     client = get_client()
     response = client.models.generate_content(
@@ -143,28 +170,33 @@ def _sync_generate(system_prompt: str, contents: list, max_tokens: int = 200) ->
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
-            temperature=0.6,
+            temperature=0.7,
             max_output_tokens=max_tokens,
             thinking_config=types.ThinkingConfig(thinking_budget=0),
+            response_mime_type="application/json",
         ),
     )
     return response.text or ""
 
 
-async def _generate(system_prompt: str, contents: list, max_tokens: int = 200) -> str:
+async def _generate(system_prompt: str, contents: list, max_tokens: int = 500) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _sync_generate, system_prompt, contents, max_tokens)
 
 
-async def get_opening_message(scenario: ScenarioType, scenario_data: dict) -> str:
-    system = _build_system_prompt(scenario, scenario_data)
-    contents = [
-        {
-            "role": "user",
-            "parts": [{"text": "The call has just connected. Give your opening greeting — one sentence only."}],
-        }
-    ]
-    raw = await _generate(system, contents, max_tokens=150)
+async def get_opening_message(
+    scenario: ScenarioType,
+    scenario_data: dict,
+    call_language: str = "en",
+) -> str:
+    system = _build_system_prompt(scenario, scenario_data, call_language)
+    lang_hint = (
+        "The call has just connected. Give your opening greeting in Urdu (اردو) — one sentence only."
+        if call_language.startswith("ur")
+        else "The call has just connected. Give your opening greeting — one sentence only."
+    )
+    contents = [{"role": "user", "parts": [{"text": lang_hint}]}]
+    raw = await _generate(system, contents, max_tokens=500)
     return _parse_response(raw).response
 
 
@@ -173,10 +205,11 @@ async def get_next_response(
     scenario_data: dict,
     conversation_history: list,
     user_message: str,
+    call_language: str = "en",
 ) -> GeminiResponse:
-    system = _build_system_prompt(scenario, scenario_data)
+    system = _build_system_prompt(scenario, scenario_data, call_language)
     contents = list(conversation_history) + [
         {"role": "user", "parts": [{"text": f"[Caller said]: {user_message}"}]}
     ]
-    raw = await _generate(system, contents, max_tokens=200)
+    raw = await _generate(system, contents, max_tokens=500)
     return _parse_response(raw)
