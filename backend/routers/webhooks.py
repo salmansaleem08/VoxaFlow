@@ -26,7 +26,7 @@ from services import call_store, gemini_service, tts_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-SPEECH_TIMEOUT = 2  # seconds of silence after speech before Twilio POSTs SpeechResult
+SPEECH_TIMEOUT = "1"  # 1s silence ends capture; "auto" cuts off on natural mid-sentence pauses
 
 TWILIO_STATUS_MAP = {
     "initiated":   CallStatus.PENDING,
@@ -55,13 +55,21 @@ def _twilio_lang(lang: str) -> str:
 
 # ── TwiML builders ────────────────────────────────────────────────────────────
 
-def _gather_say(text: str, lang: str, action: str) -> str:
-    """English: <Say> inside <Gather> — zero file generation, barge-in supported."""
+def _gather_attrs(lang: str, action: str) -> str:
+    """Shared <Gather> attribute string — speech + DTMF, barge-in, auto end-of-speech."""
     twilio_lang = _twilio_lang(lang)
     return (
+        f'input="speech dtmf" action="{action}" method="POST" '
+        f'speechTimeout="{SPEECH_TIMEOUT}" language="{twilio_lang}" '
+        'actionOnEmptyResult="true" finishOnKey=""'
+    )
+
+
+def _gather_say(text: str, lang: str, action: str) -> str:
+    """English: <Say> inside <Gather> — zero file generation, barge-in + DTMF."""
+    return (
         '<?xml version="1.0" encoding="UTF-8"?><Response>'
-        f'<Gather input="speech" action="{action}" method="POST" '
-        f'speechTimeout="{SPEECH_TIMEOUT}" language="{twilio_lang}" actionOnEmptyResult="true">'
+        f'<Gather {_gather_attrs(lang, action)}>'
         f'<Say voice="Polly.Joanna" language="en-US">{_x(text)}</Say>'
         '</Gather>'
         '</Response>'
@@ -69,14 +77,12 @@ def _gather_say(text: str, lang: str, action: str) -> str:
 
 
 async def _gather_play(text: str, lang: str, action: str) -> str:
-    """Urdu: gTTS <Play> inside <Gather> — barge-in supported."""
+    """Urdu: gTTS <Play> inside <Gather> — barge-in + DTMF."""
     audio = await tts_service.generate_speech(text, lang="ur")
     audio_url = tts_service.media_url(audio)
-    twilio_lang = _twilio_lang(lang)
     return (
         '<?xml version="1.0" encoding="UTF-8"?><Response>'
-        f'<Gather input="speech" action="{action}" method="POST" '
-        f'speechTimeout="{SPEECH_TIMEOUT}" language="{twilio_lang}" actionOnEmptyResult="true">'
+        f'<Gather {_gather_attrs(lang, action)}>'
         f'<Play>{audio_url}</Play>'
         '</Gather>'
         '</Response>'
@@ -138,15 +144,24 @@ async def call_answered(call_id: str, request: Request):
     return _twiml(await _respond_gather(opening_text, lang, speech_action))
 
 
+_DTMF_MAP = {
+    "1": "yes", "2": "no", "3": "okay", "4": "okay", "5": "okay",
+    "6": "okay", "7": "okay", "8": "okay", "9": "okay", "0": "okay",
+    "*": "goodbye", "#": "goodbye",
+}
+
+
 @router.post("/speech/{call_id}")
 async def speech_received(
     call_id: str,
     SpeechResult: str = Form(""),
     Confidence: str = Form("0"),
+    Digits: str = Form(""),
 ):
     """
-    Called by Twilio after <Gather> captures speech (or actionOnEmptyResult fires).
-    SpeechResult is Twilio's inline transcription — no recording download or Deepgram needed.
+    Called by Twilio after <Gather> captures speech or a key press.
+    SpeechResult — spoken text transcribed by Twilio inline STT.
+    Digits — DTMF key(s) pressed; mapped to natural language so Gemini can handle them.
     """
     session = call_store.get_session(call_id)
     if not session:
@@ -156,7 +171,13 @@ async def speech_received(
     lang = session.call_language
     transcript_text = SpeechResult.strip()
 
-    logger.info(f"Twilio STT [{lang}] confidence={Confidence}: '{transcript_text[:100]}'")
+    # Key press with no speech — map digit to a natural-language token Gemini can act on
+    if not transcript_text and Digits:
+        digit = Digits.strip()[-1] if Digits.strip() else ""
+        transcript_text = _DTMF_MAP.get(digit, "okay")
+        logger.info(f"DTMF [{lang}]: '{Digits}' → '{transcript_text}'")
+    else:
+        logger.info(f"Twilio STT [{lang}] confidence={Confidence}: '{transcript_text[:100]}'")
 
     if not transcript_text:
         reprompt = "Sorry, I didn't catch that — could you say that again?"
