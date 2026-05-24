@@ -154,6 +154,17 @@ export function CallStatus({ callId, onReset }: CallStatusProps) {
         </CardContent>
       </Card>
 
+      {/* Error banner (Twilio/config failures) */}
+      {data!.status === "failed" && data!.error && (
+        <div className="flex items-start gap-2.5 p-4 rounded-lg bg-destructive/8 border border-destructive/20 text-destructive text-sm">
+          <AlertCircle className="size-4 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-medium mb-0.5">Call failed</p>
+            <p className="text-xs text-destructive/80 font-mono break-all">{data!.error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Transcript */}
       <Card>
         <CardHeader className="border-b pb-4">
