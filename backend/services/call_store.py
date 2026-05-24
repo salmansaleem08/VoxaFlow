@@ -63,6 +63,13 @@ def append_transcript(call_id: str, speaker: str, text: str) -> None:
         session.updated_at = datetime.utcnow()
 
 
+def update_language(call_id: str, language: str) -> None:
+    session = _store.get(call_id)
+    if session:
+        session.call_language = language
+        session.updated_at = datetime.utcnow()
+
+
 def append_conversation(call_id: str, role: str, content: str) -> None:
     """Append to Gemini conversation history (role: 'user' or 'model')."""
     session = _store.get(call_id)

@@ -79,6 +79,7 @@ class CallSession(BaseModel):
     twilio_call_sid: Optional[str] = None
     transcript: List[TranscriptEntry] = []
     conversation_history: List[dict] = []
+    call_language: str = "en"          # detected via Deepgram; "en" or "ur"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
