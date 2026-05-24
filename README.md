@@ -1,311 +1,302 @@
-# VoxaFlow — AI-Powered Voice Call Automation
+# VoxaFlow — AI Voice Call Platform
 
-VoxaFlow is a full-stack voice AI platform that deploys intelligent outbound AI agents to handle appointment reminders, lead qualification, and customer satisfaction surveys — automatically, with natural conversation and real-time transcription.
+VoxaFlow makes intelligent outbound voice calls using AI. It handles appointment reminders, lead qualification, and customer satisfaction surveys — with real-time transcription shown in the browser as the call happens.
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        VoxaFlow Architecture                     │
-│                                                                   │
-│  ┌──────────────┐  REST API   ┌──────────────────────────────┐  │
-│  │   Next.js 15  │ ──────────▶ │        FastAPI Backend        │  │
-│  │   (Vercel)    │            │          (Render)             │  │
-│  │               │ ◀────────── │                              │  │
-│  │  • Call Form  │  Polling   │  ┌────────┐  ┌───────────┐  │  │
-│  │  • Live       │            │  │ Gemini │  │  Whisper  │  │  │
-│  │    Transcript │            │  │  LLM   │  │   STT     │  │  │
-│  │  • Outcome    │            │  └────────┘  └───────────┘  │  │
-│  └──────────────┘            │       │            │         │  │
-│                               │  ┌───▼────────────▼────┐    │  │
-│                               │  │   Google TTS (gTTS)  │    │  │
-│                               │  └────────────┬────────┘    │  │
-│                               └───────────────│─────────────┘  │
-│                                               │ TwiML + Audio   │
-│                                      ┌────────▼──────────┐      │
-│                                      │      Twilio        │      │
-│                                      │  (Outbound Calls)  │      │
-│                                      └────────┬──────────┘      │
-│                                               │ Phone Call       │
-│                                      ┌────────▼──────────┐      │
-│                                      │      Customer      │      │
-│                                      │   (Real Phone)     │      │
-│                                      └───────────────────┘      │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Call Flow
-
-1. **User** fills in phone number + scenario details in the UI
-2. **Frontend** POSTs to `/api/calls/initiate`
-3. **Backend** generates an opening greeting via **Gemini AI** and converts it to audio via **Google TTS (gTTS)**
-4. **Twilio** dials the target phone number; when answered, plays the greeting
-5. **Caller speaks** → Twilio records the response
-6. **Backend** downloads the WAV recording → **Whisper STT** transcribes it
-7. **Gemini AI** processes the conversation context and generates the next agent response
-8. **Google TTS** converts the response to audio; Twilio plays it to the caller
-9. Loop continues until the conversation is resolved (`should_end_call: true`)
-10. **Frontend** polls `/api/calls/{call_id}/status` every 2.5 s to show live transcript and outcome
-
-## Tech Stack
-
-| Layer | Technology | Notes |
-|---|---|---|
-| Frontend | Next.js 15, Tailwind CSS 3, TypeScript | Deployed to Vercel |
-| Backend | FastAPI, Python 3.9+ | Deployed to Render |
-| LLM | Gemini 1.5 Flash | `GEMINI_API_KEY` in env |
-| STT | OpenAI Whisper (base model) | No ffmpeg needed — uses scipy WAV loader |
-| TTS | Google TTS via gTTS | No credentials needed |
-| Telephony | Twilio Voice | Outbound calls + webhooks |
-
-## Scenario: Appointment Reminder & Confirmation
-
-VoxaFlow ships with **3 pre-built scenarios**:
-
-| Scenario | Agent | Goal |
-|---|---|---|
-| Appointment Reminder | "Aria" from VoxaFlow Health | Confirm, reschedule, or cancel |
-| Lead Qualification | "Alex" from VoxaFlow | Qualify lead and schedule demo |
-| Customer Satisfaction | "Maya" from VoxaFlow | Complete 3-question survey |
-
-Each scenario has a custom system prompt, agent persona, and structured JSON response from Gemini that drives the conversation loop.
-
-## Design Decisions
-
-### Why Gemini Flash?
-Fast inference (~1-2s), excellent at structured JSON output (needed for `should_end_call` + `call_outcome` signaling), and the API key was already available. The context window easily handles 10–20 conversation turns.
-
-### Why gTTS over Google Cloud TTS?
-gTTS requires no credentials or GCP project — ideal for a portable demo that anyone can run locally. Production would upgrade to Google Cloud TTS (Chirp HD voices) for higher quality.
-
-### Why no ffmpeg for Whisper?
-Whisper's `transcribe()` accepts numpy arrays directly. By loading Twilio's WAV recording with `scipy.io.wavfile` and resampling to 16 kHz with `scipy.signal`, we skip the ffmpeg dependency entirely while maintaining full STT quality.
-
-### Why Twilio `<Record>` over Media Streams?
-The `<Record>` + webhook pattern is simpler to deploy on Render without persistent WebSocket connections, more reliable at scale, and still uses our full Whisper+Gemini+TTS pipeline. Trade-off: ~2–5s turn latency vs ~500ms with media streams.
-
-### Flexible & Dynamic Design
-Per the task requirements, all scenario logic is data-driven: new scenarios can be added by registering fields in `SCENARIO_FIELDS` (frontend) and adding a system prompt branch in `gemini_service.py` (backend) — no structural changes required.
+**Supports English and Urdu** — the agent automatically detects which language the caller uses and responds in the same language.
 
 ---
 
-## Local Development Setup
+## How it works
 
-### Prerequisites
-
-- Python 3.9+
-- Node.js 18+
-- A [Twilio account](https://www.twilio.com) with a phone number
-- [ngrok](https://ngrok.com) (for Twilio webhooks during local dev)
-- Gemini API key (already in `.env`)
-
-### 1. Clone and configure environment
-
-```bash
-git clone <your-repo-url>
-cd VoxaFlow
+```
+Browser (Next.js) ──► FastAPI backend ──► Gemini AI (generates response)
+                                      ──► Twilio (places phone call)
+                                      ◄── Twilio webhook (caller's voice recording)
+                                      ──► Deepgram (transcribes voice → text)
+                                      ──► Twilio <Say> (speaks response, zero-latency)
 ```
 
-The root `.env` file already contains your `GEMINI_API_KEY`. Add your Twilio credentials:
+1. You fill in a phone number and scenario details in the browser
+2. Backend generates an opening greeting via Gemini and places the call via Twilio
+3. When answered, Twilio speaks the greeting and starts recording
+4. Caller's voice → Deepgram STT → Gemini generates next line → Twilio speaks it
+5. Loop continues until the conversation goal is met
+6. Browser shows the live transcript updated every 2.5 seconds
+
+---
+
+## Prerequisites
+
+You need the following before starting:
+
+| Requirement | Notes |
+|---|---|
+| **Python 3.9+** | `python3 --version` to check |
+| **Node.js 18+** | `node --version` to check |
+| **ngrok account** | Free. Required to expose your local backend to Twilio. [ngrok.com](https://ngrok.com) |
+| **Twilio trial account** | Free. Get a phone number. [twilio.com](https://www.twilio.com) |
+| **Gemini API key** | Already set in `.env` |
+| **Deepgram API key** | Already set in `.env` |
+
+### Install ngrok
+
+```bash
+# macOS (Homebrew)
+brew install ngrok
+
+# Or download from https://ngrok.com/download
+```
+
+After installing, authenticate once:
+```bash
+ngrok config add-authtoken YOUR_NGROK_TOKEN
+```
+Your token is at: https://dashboard.ngrok.com/get-started/your-authtoken
+
+---
+
+## Step 1 — Configure your environment
+
+The `.env` file at the project root holds all credentials. Open it and verify/fill these values:
 
 ```env
-GEMINI_API_KEY=AIzaSy...          # Already set
-TWILIO_ACCOUNT_SID=ACxxx...
-TWILIO_AUTH_TOKEN=your_token
-TWILIO_PHONE_NUMBER=+1xxxxxxxxxx
-BACKEND_URL=https://xxxx.ngrok-free.app   # Update after step 4
+# ── Already set ──────────────────────────────────────────────────────
+GEMINI_API_KEY=...         # Gemini API key
+DEEPGRAM_API_KEY=...       # Deepgram API key
+
+# ── Twilio — find these at console.twilio.com → Dashboard ────────────
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   # Must start with AC
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE_NUMBER=+1xxxxxxxxxx    # Your Twilio number in E.164 format
+
+# If you use an API Key instead of Auth Token:
+# TWILIO_API_KEY=SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# TWILIO_API_SECRET=your_secret
+
+# ── Set AFTER step 3 (ngrok) ─────────────────────────────────────────
+BACKEND_URL=https://xxxx.ngrok-free.app   # Your ngrok public URL
 FRONTEND_URL=http://localhost:3000
-WHISPER_MODEL=base
 ```
 
-### 2. Backend setup
+**Twilio trial account note:** Trial accounts can only call phone numbers that are **verified** in your Twilio console. Go to: Twilio Console → Phone Numbers → Verified Caller IDs → add the number you want to call.
+
+---
+
+## Step 2 — Start the backend
 
 ```bash
+# From the project root
 cd backend
 
-# Create and activate virtual environment
+# Create a Python virtual environment (first time only)
 python3 -m venv venv
-source venv/bin/activate       # macOS/Linux
-# venv\Scripts\activate        # Windows
 
-# Install dependencies
+# Activate the virtual environment
+source venv/bin/activate        # macOS / Linux
+# venv\Scripts\activate         # Windows
+
+# Install Python dependencies
 pip install -r requirements.txt
 
-# Start the server
+# Start the backend server
 uvicorn main:app --reload --port 8000
 ```
 
-The backend will load the Whisper model on startup (~30s first time, then cached).
-
-API docs: http://localhost:8000/docs
-
-### 3. Frontend setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Copy env file
-cp .env.local.example .env.local
-# Edit .env.local → set NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# Start dev server
-npm run dev
+You should see:
+```
+INFO: VoxaFlow API is ready.
+INFO: Uvicorn running on http://0.0.0.0:8000
 ```
 
-Frontend: http://localhost:3000
+The API docs are at: **http://localhost:8000/docs**
 
-### 4. Expose backend with ngrok (for Twilio webhooks)
+---
 
-Twilio needs a public URL to send webhooks to your local backend:
+## Step 3 — Expose backend with ngrok
+
+Twilio sends call events (webhooks) to your backend. For local development, ngrok creates a public tunnel to your localhost.
+
+Open a **new terminal** and run:
 
 ```bash
 ngrok http 8000
 ```
 
-Copy the `https://xxxx.ngrok-free.app` URL and set it in your `.env`:
+You will see output like:
+```
+Forwarding  https://abcd-1234.ngrok-free.app -> http://localhost:8000
+```
+
+Copy the `https://...ngrok-free.app` URL. Now update your `.env`:
 
 ```env
-BACKEND_URL=https://xxxx.ngrok-free.app
+BACKEND_URL=https://abcd-1234.ngrok-free.app
 ```
 
-Then restart the backend.
+**Restart the backend** after updating the `.env` so it picks up the new URL:
+
+```bash
+# In the backend terminal, press Ctrl+C then:
+uvicorn main:app --reload --port 8000
+```
+
+> **Important:** ngrok free tier gives you a new URL every time you restart it. If ngrok restarts, update `BACKEND_URL` and restart the backend too.
 
 ---
 
-## Production Deployment
+## Step 4 — Start the frontend
 
-### Backend → Render
+Open a **new terminal**:
 
-1. Push code to GitHub
-2. Go to [render.com](https://render.com) → **New Web Service**
-3. Connect your repo; Render auto-detects `render.yaml`
-4. Add environment variables in the Render dashboard:
-   - `GEMINI_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`
-   - `BACKEND_URL` = your Render service URL (e.g. `https://voxaflow-api.onrender.com`)
-   - `FRONTEND_URL` = your Vercel URL
-5. Deploy
+```bash
+# From the project root
+cd frontend
 
-**Note:** Render free tier sleeps after 15 min of inactivity. Use Render Starter ($7/mo) for always-on.
+# Install Node dependencies (first time only)
+npm install
 
-### Frontend → Vercel
+# Create the frontend environment file
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 
-1. Go to [vercel.com](https://vercel.com) → **New Project**
-2. Import your GitHub repo; Vercel detects `vercel.json` (root dir = `frontend`)
-3. Add environment variable:
-   - `NEXT_PUBLIC_API_URL` = your Render backend URL
-4. Deploy
+# Start the dev server
+npm run dev
+```
+
+You should see:
+```
+▲ Next.js 15.x.x
+- Local: http://localhost:3000
+```
+
+Open **http://localhost:3000** in your browser.
 
 ---
 
-## API Reference
+## Step 5 — Make your first call
 
-### `POST /api/calls/initiate`
+1. Open http://localhost:3000
+2. Scroll to **"Launch a Call"** or click "Get Started" in the navbar
+3. Choose a scenario (e.g. **Appointment Reminder**)
+4. Fill in the fields — use a real phone number you can answer
+5. Click **Launch Call**
+6. Answer the phone when it rings — you will hear the AI agent speak first
+7. Respond naturally — the agent will reply within 2–4 seconds
+8. Watch the live transcript update in the browser
 
-Initiate an outbound AI call.
-
-```json
-{
-  "phone_number": "+15551234567",
-  "scenario": "appointment_reminder",
-  "scenario_data": {
-    "patient_name": "Sarah Johnson",
-    "appointment_date": "Thursday, June 12th",
-    "appointment_time": "2:30 PM",
-    "provider_name": "Dr. Emily Carter",
-    "location": "Downtown Clinic"
-  }
-}
-```
-
-Response:
-```json
-{
-  "call_id": "uuid",
-  "status": "pending",
-  "message": "Call is being prepared."
-}
-```
-
-### `GET /api/calls/{call_id}/status`
-
-Poll for live call status and transcript.
-
-```json
-{
-  "call_id": "uuid",
-  "status": "in_progress",
-  "outcome": null,
-  "transcript": [
-    { "speaker": "agent", "text": "Hello, may I speak with Sarah?", "timestamp": "..." },
-    { "speaker": "user",  "text": "Yes, this is Sarah.",           "timestamp": "..." }
-  ],
-  "phone_number": "+15551234567",
-  "scenario": "appointment_reminder",
-  "created_at": "...",
-  "updated_at": "..."
-}
-```
+### Expected call flow
+- AI speaks greeting
+- You speak → 3 seconds of silence → AI processes → AI responds
+- Repeat until the conversation goal is reached
+- Call ends automatically
 
 ---
 
-## Project Structure
+## Scenarios
+
+| Scenario | Agent | What it does |
+|---|---|---|
+| **Appointment Reminder** | Aria | Confirms, reschedules, or cancels an appointment |
+| **Lead Qualification** | Alex | Qualifies a prospect with 2–3 questions, offers demo |
+| **Customer Satisfaction** | Maya | Short 3-question satisfaction survey |
+
+---
+
+## Project structure
 
 ```
 VoxaFlow/
-├── .env                      # Root env (Gemini API key + Twilio creds)
+├── .env                        ← All credentials (gitignored)
 ├── .gitignore
 ├── README.md
-├── render.yaml               # Render deployment config
-├── vercel.json               # Vercel deployment config
 │
 ├── backend/
-│   ├── main.py               # FastAPI app entry point
-│   ├── config.py             # Pydantic settings
+│   ├── main.py                 ← FastAPI entry point
+│   ├── config.py               ← Pydantic settings (reads .env)
 │   ├── requirements.txt
-│   ├── .env.example
+│   ├── .env.example            ← Template (no real values)
 │   ├── models/
-│   │   └── schemas.py        # Pydantic request/response models
+│   │   └── schemas.py          ← Request/response + session models
 │   ├── routers/
-│   │   ├── calls.py          # REST endpoints: initiate, status, list
-│   │   └── webhooks.py       # Twilio webhooks: answer, recording, status
+│   │   ├── calls.py            ← REST: initiate call, poll status
+│   │   └── webhooks.py         ← Twilio webhooks: answer, recording, status
 │   └── services/
-│       ├── call_store.py     # In-memory session storage
-│       ├── gemini_service.py # Gemini LLM conversation management
-│       ├── tts_service.py    # Google TTS (gTTS) audio generation
-│       ├── whisper_service.py# Whisper STT (numpy pipeline, no ffmpeg)
-│       └── twilio_service.py # Twilio SDK: make calls, download recordings
+│       ├── call_store.py       ← In-memory session storage
+│       ├── deepgram_service.py ← STT: Deepgram nova-2 (EN + UR detection)
+│       ├── gemini_service.py   ← LLM: Gemini Flash conversation manager
+│       ├── tts_service.py      ← TTS: gTTS (Urdu only; English uses Twilio <Say>)
+│       └── twilio_service.py   ← Twilio SDK: make calls, download recordings
 │
 └── frontend/
     ├── app/
-    │   ├── layout.tsx         # Root layout with Manrope + JetBrains Mono fonts
-    │   ├── page.tsx           # Home page (landing + call form)
-    │   └── globals.css        # Tailwind + CSS variables (UI-Spec)
+    │   ├── layout.tsx           ← Root layout (Manrope font, metadata)
+    │   ├── page.tsx             ← Home page
+    │   └── globals.css          ← Design tokens + animations
     ├── components/
-    │   ├── ui/                # Design system (Button, Input, Card, etc.)
+    │   ├── ui/                  ← Button, Input, Card, Badge, Select
     │   ├── navbar.tsx
     │   ├── hero-section.tsx
-    │   ├── features-section.tsx
-    │   ├── call-form.tsx      # Dynamic scenario form
-    │   └── call-status.tsx    # Live call monitor + transcript
-    ├── lib/
-    │   ├── utils.ts           # cn() helper
-    │   └── api.ts             # Typed fetch wrappers
-    └── public/
-        └── logo.svg
+    │   ├── call-form.tsx        ← Scenario selector + dynamic fields
+    │   └── call-status.tsx      ← Live call monitor + transcript
+    └── lib/
+        ├── api.ts               ← Typed fetch wrappers
+        └── utils.ts             ← cn() helper
 ```
 
 ---
 
-## Extending VoxaFlow
+## Tech stack
 
-To add a new call scenario:
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 15, Tailwind CSS 3, TypeScript |
+| Backend | FastAPI, Python 3.9+ |
+| LLM | Gemini Flash (`gemini-flash-latest`) via `google-genai` SDK |
+| STT | Deepgram nova-2 — cloud, ~200 ms, telephony-optimized, EN+UR |
+| TTS (English) | Twilio `<Say voice="Polly.Joanna">` — zero-latency, no file generation |
+| TTS (Urdu) | Google TTS via gTTS — proper Urdu script support |
+| Telephony | Twilio Voice — outbound calls + TwiML webhooks |
 
-1. **Backend** — add a new branch in `services/gemini_service.py` → `_build_system_prompt()`
-2. **Backend** — add the new enum value to `ScenarioType` in `models/schemas.py`
-3. **Frontend** — add the scenario option in `components/call-form.tsx` → `SCENARIOS` array
-4. **Frontend** — define its input fields in `SCENARIO_FIELDS`
+---
+
+## Known limitations
+
+| Limitation | Detail |
+|---|---|
+| **Twilio trial account** | Calls include a 15-second trial disclaimer before your agent speaks. Upgrade to a paid Twilio account to remove it. |
+| **Verified numbers only** | Trial accounts can only call numbers verified in the Twilio console. |
+| **Turn-based conversation** | The agent speaks, then listens. If you speak while the agent is talking, your speech will be captured at the start of the next recording window (3-second silence triggers recording end). This is a Twilio `<Record>` limitation — true barge-in requires WebSocket Media Streams. |
+| **In-memory storage** | Call sessions are stored in RAM. Restarting the backend clears all sessions. For production, swap `call_store.py` with Redis. |
+| **ngrok URL changes** | The free ngrok tier generates a new URL on every restart. Update `.env` `BACKEND_URL` and restart the backend each time. |
+
+---
+
+## Troubleshooting
+
+**The phone doesn't ring**
+- Check that the number is verified in Twilio Console → Phone Numbers → Verified Caller IDs
+- Check that ngrok is running and `BACKEND_URL` in `.env` matches the current ngrok URL
+- Check backend logs for Twilio error messages
+
+**"I'm having trouble with the connection" loops**
+- The recording download is failing. Check that `TWILIO_AUTH_TOKEN` and `TWILIO_ACCOUNT_SID` (the `AC...` one) are correct in `.env`
+
+**Agent doesn't respond after you speak**
+- The Deepgram transcription may be returning empty. Check backend logs for `Deepgram:` lines
+- Make sure you stop speaking for at least 3 seconds so Twilio knows the recording is done
+
+**Deepgram 401 error**
+- Check that `DEEPGRAM_API_KEY` in `.env` is correct
+
+**Gemini errors**
+- Check that `GEMINI_API_KEY` is valid and has quota available
+
+---
+
+## Adding a new scenario
+
+1. Add a new value to `ScenarioType` in `backend/models/schemas.py`
+2. Add a system prompt branch in `backend/services/gemini_service.py` → `_build_system_prompt()`
+3. Add the scenario to the `SCENARIOS` array in `frontend/components/call-form.tsx`
+4. Add its input fields to `SCENARIO_FIELDS` in the same file
 
 No structural changes required — the architecture is fully data-driven.
