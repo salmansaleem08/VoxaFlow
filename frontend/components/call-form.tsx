@@ -10,9 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { initiateCall } from "@/lib/api"
 
 const SCENARIOS = [
+  { value: "customer_satisfaction","label": "Customer Satisfaction Survey" },
   { value: "appointment_reminder", label: "Appointment Reminder & Confirmation" },
   { value: "lead_qualification",   label: "Lead Qualification Call" },
-  { value: "customer_satisfaction","label": "Customer Satisfaction Survey" },
+  
 ]
 
 interface ScenarioField {
@@ -49,7 +50,7 @@ interface CallFormProps {
 
 export function CallForm({ onCallInitiated }: CallFormProps) {
   const [phone, setPhone] = useState("")
-  const [scenario, setScenario] = useState("appointment_reminder")
+  const [scenario, setScenario] = useState("customer_satisfaction")
   const [language, setLanguage] = useState("en")
   const [fields, setFields] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
