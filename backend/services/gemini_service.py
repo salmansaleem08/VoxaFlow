@@ -51,15 +51,21 @@ VOICE RULES (this is spoken audio, not text):
 
 def _conversation_style() -> str:
     return """
-CONVERSATION STYLE — this is the most important instruction:
-- First react to what they JUST said. Reference their specific words or content.
+CONVERSATION STYLE — most important:
+- First react to what they JUST said. Reference their specific words.
   WRONG: "Thank you. Next question: what did you like most?"
-  RIGHT: "A four — that's good to hear. Was there one thing in particular that stood out, or more the overall experience?"
+  RIGHT: "A four — that's good to hear. Was there one thing that stood out, or more the overall experience?"
 - If they give a long answer, acknowledge the substance before moving on. Don't rush.
-- If they ask YOU a question, answer it directly and honestly, THEN continue.
-- If they seem hesitant, reassure them naturally before pushing forward.
+- If they ask YOU a question, answer it directly and honestly first, THEN continue.
+- If they seem hesitant, reassure them before pushing forward.
 - Never use canned phrases like "I appreciate that feedback" or "That's great!" — react specifically.
-- Your response should feel like a natural reaction to THIS person, not a script being read.
+
+CLOSING RULE — never end abruptly:
+- Before setting should_end_call=true, always ask something like "Is there anything else I can help you with?" or "Do you have any other questions?"
+- Only close AFTER they explicitly say no / say goodbye / confirm they're done.
+- If they ask a question at any point, answer it fully — then ask again if there's anything else.
+- If they keep asking questions, keep answering. Do NOT rush to close.
+- should_end_call=true is only valid AFTER a proper goodbye exchange.
 """
 
 
@@ -157,13 +163,23 @@ def _parse_response(raw: str) -> GeminiResponse:
         )
 
 
-def _sync_generate(system_prompt: str, contents: list, max_tokens: int = 500) -> str:
-    """Synchronous Gemini call — run via run_in_executor.
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
-    thinking_budget=0: suppress thinking tokens (Gemini 2.5 Flash thinks by default).
-    response_mime_type="application/json": enforced at API level — the model cannot
-    return plain text regardless of prompt complexity or emotional input.
-    """
+
+def _contents_to_messages(system_prompt: str, contents: list) -> list:
+    """Convert Google genai content format → OpenAI/Groq message format."""
+    messages = [{"role": "system", "content": system_prompt}]
+    for turn in contents:
+        role = "assistant" if turn.get("role") == "model" else "user"
+        text = "".join(p.get("text", "") for p in turn.get("parts", []))
+        if text:
+            messages.append({"role": role, "content": text})
+    return messages
+
+
+def _sync_generate(system_prompt: str, contents: list, max_tokens: int = 500) -> str:
+    """Gemini call. thinking_budget=0 suppresses thinking tokens; response_mime_type
+    enforces JSON at API level so the model can't return plain text."""
     client = get_client()
     response = client.models.generate_content(
         model=MODEL,
@@ -179,9 +195,30 @@ def _sync_generate(system_prompt: str, contents: list, max_tokens: int = 500) ->
     return response.text or ""
 
 
+def _sync_generate_groq(system_prompt: str, contents: list, max_tokens: int = 500) -> str:
+    """Groq fallback — used when Gemini fails or is unavailable."""
+    from groq import Groq
+    client = Groq(api_key=settings.groq_api_key)
+    messages = _contents_to_messages(system_prompt, contents)
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=0.7,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content or ""
+
+
 async def _generate(system_prompt: str, contents: list, max_tokens: int = 500) -> str:
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _sync_generate, system_prompt, contents, max_tokens)
+    try:
+        return await loop.run_in_executor(None, _sync_generate, system_prompt, contents, max_tokens)
+    except Exception as e:
+        logger.warning(f"Gemini failed ({e!r}) — falling back to Groq ({GROQ_MODEL})")
+        if not settings.groq_api_key:
+            raise RuntimeError("Gemini failed and GROQ_API_KEY is not set") from e
+        return await loop.run_in_executor(None, _sync_generate_groq, system_prompt, contents, max_tokens)
 
 
 async def get_opening_message(

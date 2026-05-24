@@ -8,8 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    # ── Gemini ────────────────────────────────────────────────────────────────
+    # ── Gemini (primary LLM) ─────────────────────────────────────────────────
     gemini_api_key: str = ""
+
+    # ── Groq (fallback LLM) ───────────────────────────────────────────────────
+    groq_api_key: str = ""
 
     # ── Deepgram (STT) ────────────────────────────────────────────────────────
     deepgram_api_key: str = ""
