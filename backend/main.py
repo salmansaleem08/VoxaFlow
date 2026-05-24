@@ -10,7 +10,6 @@ from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from routers import calls, webhooks
-from services import whisper_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,9 +20,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm up Whisper model at startup to avoid first-call latency
-    logger.info("Warming up Whisper model...")
-    await whisper_service.preload_model(settings.whisper_model)
     logger.info("VoxaFlow API is ready.")
     yield
     logger.info("VoxaFlow API shutting down.")
@@ -58,7 +54,7 @@ async def health_check():
     return {
         "status": "ok",
         "version": "1.0.0",
-        "whisper_model": settings.whisper_model,
+        "stt": "deepgram-nova-2",
         "backend_url": settings.backend_url,
     }
 

@@ -10,20 +10,13 @@ aiofiles>=23.2.1
 # Telephony
 twilio>=9.2.0
 
-# LLM — new google-genai SDK (google-generativeai is deprecated)
+# LLM — google-genai SDK (google-generativeai is deprecated)
 google-genai>=1.0.0
 
-# TTS (Google TTS, no credentials needed)
+# TTS
 gTTS>=2.5.1
 
-# STT
-openai-whisper>=20231117
-torch>=2.2.0
-
-# Audio processing (WAV loading without ffmpeg)
-scipy>=1.13.0
-numpy>=1.26.0
-soundfile>=0.12.1
+# STT — Deepgram nova-2 (cloud, telephony-optimized, uses httpx above)
 
 # Async support
 anyio>=4.4.0

@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # ── Gemini ────────────────────────────────────────────────────────────────
     gemini_api_key: str = ""
 
+    # ── Deepgram (STT) ────────────────────────────────────────────────────────
+    deepgram_api_key: str = ""
+
     # ── Twilio ────────────────────────────────────────────────────────────────
     # Option A (recommended): Account SID (AC...) + Auth Token
     twilio_account_sid: str = ""   # AC... Account SID
@@ -26,9 +29,6 @@ class Settings(BaseSettings):
     # ── Server ────────────────────────────────────────────────────────────────
     backend_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
-
-    # ── Whisper ───────────────────────────────────────────────────────────────
-    whisper_model: str = "base"
 
     # ── Media storage ─────────────────────────────────────────────────────────
     media_dir: Path = Path(tempfile.gettempdir()) / "voxaflow_media"

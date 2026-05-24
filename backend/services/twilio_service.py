@@ -56,11 +56,9 @@ async def download_recording(recording_url: str, output_path: str) -> None:
 
     wav_url = recording_url.rstrip("/") + ".wav"
 
-    # Auth: use API Key or Account SID depending on config
-    if settings.using_api_key_auth:
-        auth = (settings.twilio_api_key, settings.twilio_api_secret)
-    else:
-        auth = (settings.twilio_account_sid, settings.twilio_auth_token)
+    # Twilio's recording media endpoint only accepts Account SID + Auth Token
+    # regardless of whether API Key auth is used for call management.
+    auth = (settings.twilio_account_sid, settings.twilio_auth_token)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(wav_url, auth=auth)
