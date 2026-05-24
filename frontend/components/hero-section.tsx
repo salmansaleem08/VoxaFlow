@@ -25,7 +25,7 @@ export function HeroSection() {
         <div className="animate-fade-in flex justify-center">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/15 border border-primary/25 text-primary text-sm font-medium">
             <Sparkles className="size-3.5" />
-            Powered by Gemini AI + Whisper STT
+            Powered by Gemini AI + Deepgram STT
           </span>
         </div>
 

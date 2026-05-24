@@ -26,10 +26,8 @@ export function Navbar() {
   return (
     <nav
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-secondary/98 backdrop-blur-md shadow-lg border-b border-white/10"
-          : "bg-secondary/80 backdrop-blur-sm"
+        "fixed top-0 left-0 right-0 z-50 bg-secondary transition-all duration-300",
+        scrolled && "shadow-lg border-b border-white/10"
       )}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
