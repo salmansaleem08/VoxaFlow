@@ -13,15 +13,21 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-async def _prepare_and_call(call_id: str, phone_number: str, scenario: ScenarioType, scenario_data: dict):
+async def _prepare_and_call(
+    call_id: str,
+    phone_number: str,
+    scenario: ScenarioType,
+    scenario_data: dict,
+    call_language: str = "en",
+):
     """
     Background task:
-    1. Generate opening greeting text via Gemini (fast — no TTS file needed)
-    2. Store it in session so the answer webhook can deliver it via Twilio <Say>
+    1. Generate opening greeting (in the right language) via Gemini
+    2. Store it so the answer webhook can deliver it
     3. Initiate the Twilio call
     """
     try:
-        opening_text = await gemini_service.get_opening_message(scenario, scenario_data)
+        opening_text = await gemini_service.get_opening_message(scenario, scenario_data, call_language)
 
         call_store.append_transcript(call_id, "agent", opening_text)
         # Gemini requires conversations to start with a user turn
@@ -33,11 +39,11 @@ async def _prepare_and_call(call_id: str, phone_number: str, scenario: ScenarioT
             session.scenario_data["__opening_text__"] = opening_text
 
         twilio_sid = twilio_service.make_outbound_call(phone_number, call_id)
-        call_store.update_status(call_id, CallStatus.RINGING, twilio_sid)
+        call_store.update_status(call_id, CallStatus.PENDING, twilio_sid)
 
     except Exception as e:
         logger.error(f"Failed to initiate call {call_id}: {e}")
-        call_store.update_status(call_id, CallStatus.FAILED)
+        call_store.update_status(call_id, CallStatus.FAILED, error=str(e))
 
 
 @router.post("/initiate", response_model=InitiateCallResponse)
@@ -50,6 +56,7 @@ async def initiate_call(request: InitiateCallRequest, background_tasks: Backgrou
         phone_number=request.phone_number,
         scenario=request.scenario,
         scenario_data=request.scenario_data,
+        call_language=request.call_language,
     )
 
     background_tasks.add_task(
@@ -58,6 +65,7 @@ async def initiate_call(request: InitiateCallRequest, background_tasks: Backgrou
         request.phone_number,
         request.scenario,
         request.scenario_data,
+        request.call_language,
     )
 
     return InitiateCallResponse(
@@ -77,6 +85,7 @@ async def get_call_status(call_id: str):
         call_id=session.call_id,
         status=session.status,
         outcome=session.outcome,
+        error=session.error,
         transcript=session.transcript,
         phone_number=session.phone_number,
         scenario=session.scenario,

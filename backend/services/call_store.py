@@ -15,6 +15,7 @@ def create_session(
     phone_number: str,
     scenario: str,
     scenario_data: dict,
+    call_language: str = "en",
 ) -> CallSession:
     call_id = str(uuid.uuid4())
     session = CallSession(
@@ -22,6 +23,7 @@ def create_session(
         phone_number=phone_number,
         scenario=scenario,
         scenario_data=scenario_data,
+        call_language=call_language,
     )
     _store[call_id] = session
     return session
@@ -38,12 +40,19 @@ def get_session_by_twilio_sid(twilio_call_sid: str) -> Optional[CallSession]:
     return None
 
 
-def update_status(call_id: str, status: CallStatus, twilio_call_sid: Optional[str] = None) -> None:
+def update_status(
+    call_id: str,
+    status: CallStatus,
+    twilio_call_sid: Optional[str] = None,
+    error: Optional[str] = None,
+) -> None:
     session = _store.get(call_id)
     if session:
         session.status = status
         if twilio_call_sid:
             session.twilio_call_sid = twilio_call_sid
+        if error:
+            session.error = error
         session.updated_at = datetime.utcnow()
 
 

@@ -4,6 +4,7 @@ export interface InitiateCallPayload {
   phone_number: string
   scenario: string
   scenario_data: Record<string, string>
+  call_language: string   // "en" | "ur"
 }
 
 export interface TranscriptEntry {
@@ -16,6 +17,7 @@ export interface CallStatusData {
   call_id: string
   status: "pending" | "ringing" | "in_progress" | "completed" | "failed" | "no_answer"
   outcome: string | null
+  error: string | null
   transcript: TranscriptEntry[]
   phone_number: string
   scenario: string

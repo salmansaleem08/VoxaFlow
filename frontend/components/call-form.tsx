@@ -50,6 +50,7 @@ interface CallFormProps {
 export function CallForm({ onCallInitiated }: CallFormProps) {
   const [phone, setPhone] = useState("")
   const [scenario, setScenario] = useState("appointment_reminder")
+  const [language, setLanguage] = useState("en")
   const [fields, setFields] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,6 +92,7 @@ export function CallForm({ onCallInitiated }: CallFormProps) {
         phone_number: phone.trim(),
         scenario,
         scenario_data: fields,
+        call_language: language,
       })
       onCallInitiated(result.call_id)
     } catch (err: unknown) {
@@ -132,6 +134,20 @@ export function CallForm({ onCallInitiated }: CallFormProps) {
               required
             />
             <p className="text-xs text-muted-foreground">E.164 format (+1xxxxxxxxxx)</p>
+          </div>
+
+          {/* Language */}
+          <div className="space-y-2">
+            <Label htmlFor="language">Call Language</Label>
+            <Select
+              id="language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className="h-11"
+            >
+              <option value="en">English</option>
+              <option value="ur">Urdu (اردو)</option>
+            </Select>
           </div>
 
           {/* Scenario */}

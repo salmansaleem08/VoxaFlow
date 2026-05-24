@@ -61,6 +61,7 @@ class InitiateCallRequest(BaseModel):
     phone_number: str = Field(..., description="Target phone number in E.164 format (+1xxxxxxxxxx)")
     scenario: ScenarioType
     scenario_data: dict = Field(..., description="Scenario-specific fields")
+    call_language: str = Field("en", description="Language for the call: 'en' (English) or 'ur' (Urdu)")
 
 
 class TranscriptEntry(BaseModel):
@@ -76,10 +77,11 @@ class CallSession(BaseModel):
     scenario_data: dict
     status: CallStatus = CallStatus.PENDING
     outcome: Optional[CallOutcome] = None
+    error: Optional[str] = None
     twilio_call_sid: Optional[str] = None
     transcript: List[TranscriptEntry] = []
     conversation_history: List[dict] = []
-    call_language: str = "en"          # detected via Deepgram; "en" or "ur"
+    call_language: str = "en"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -88,6 +90,7 @@ class CallStatusResponse(BaseModel):
     call_id: str
     status: CallStatus
     outcome: Optional[CallOutcome]
+    error: Optional[str]
     transcript: List[TranscriptEntry]
     phone_number: str
     scenario: ScenarioType
